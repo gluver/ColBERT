@@ -2,11 +2,13 @@ import string
 import torch
 import torch.nn as nn
 
-from transformers import BertPreTrainedModel, BertModel, BertTokenizerFast
+# from transformers import BertPreTrainedModel, BertModel, BertTokenizerFast
+from transformers import XLMRobertaConfig ,XLMRobertaModel,XLMRobertaTokenizerFast
 from colbert.parameters import DEVICE
 
 
-class ColBERT(BertPreTrainedModel):
+class ColBERT(XLMRobertaModel):
+
     def __init__(self, config, query_maxlen, doc_maxlen, mask_punctuation, dim=128, similarity_metric='cosine'):
 
         super(ColBERT, self).__init__(config)
@@ -18,14 +20,20 @@ class ColBERT(BertPreTrainedModel):
 
         self.mask_punctuation = mask_punctuation
         self.skiplist = {}
-
+        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained('xlm-roberta-large')
+        self.tokenizer.add_tokens(["[Q]","[D]"])
+        
         if self.mask_punctuation:
-            self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
+ 
+            #skip punctuation ?? a dict punctuation into vocab ids
             self.skiplist = {w: True
-                             for symbol in string.punctuation
-                             for w in [symbol, self.tokenizer.encode(symbol, add_special_tokens=False)[0]]}
+                                for symbol in string.punctuation
+                                for w in [symbol, self.tokenizer.encode(symbol, add_special_tokens=False)[0]]}
 
-        self.bert = BertModel(config)
+        self.bert = XLMRobertaModel(config)
+        # Add 2 tokens "[Q]","[D]" need resize the embedding and initial
+        self.bert.resize_token_embeddings(self.bert.config.vocab_size+2)
+        # map encoder output into "dim" dimensions eg.1024 -> 128
         self.linear = nn.Linear(config.hidden_size, dim, bias=False)
 
         self.init_weights()
